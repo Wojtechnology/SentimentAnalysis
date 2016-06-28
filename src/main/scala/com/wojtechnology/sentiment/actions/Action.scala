@@ -16,7 +16,7 @@ class InvalidParamsException extends Exception
   * Actions can have dependencies (parent actions) that are required before they are
   * executed
   */
-abstract class Action() {
+abstract class Action(protected[this] val args: Seq[String]) {
   // Actions required to be executed before this actions
   protected[this] val requiredDependencies = {}
 
@@ -24,17 +24,14 @@ abstract class Action() {
   protected[this] val children: scala.collection.mutable.ArrayBuffer[Action] =
     scala.collection.mutable.ArrayBuffer[Action]()
 
-  protected[this] val params: scala.collection.mutable.ArrayBuffer[String] =
-    scala.collection.mutable.ArrayBuffer[String]()
-
   // Validates that params are correct
-  protected[this] def validateParams()
+  protected[this] def validateArgs()
 
   // Exectutes action
   protected[this] def execute()
 
   def run() = {
-    validateParams()
+    validateArgs()
     execute()
   }
 
@@ -46,10 +43,5 @@ abstract class Action() {
   // Accessor - returns list of children
   def getChildren(): scala.collection.mutable.ArrayBuffer[Action] = {
     children
-  }
-
-  // Mutator - adds param to params
-  def addParam(param: String) = {
-    params.append(param)
   }
 }
