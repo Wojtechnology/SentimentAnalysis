@@ -6,13 +6,13 @@ import com.wojtechnology.sentiment.actions._
   * Created by wojtekswiderski on 2016-06-10.
   */
 object ArgumentParser {
-  private[this] final val OPEN_FILE = "-f"
+  private[this] final val FILE_INPUT = "-f"
 
-  private[this] final val OPTIONS = Set(OPEN_FILE)
+  private[this] final val OPTIONS = Set(FILE_INPUT)
 
   private[this] def createAction(option: String, args: Seq[String]): Action = {
     option match {
-      case OPEN_FILE => new OpenFile(args)
+      case FILE_INPUT => new FileStreamAction(args)
     }
   }
 

@@ -8,16 +8,13 @@ package com.wojtechnology.sentiment.actions
   */
 class ActionList(private[this] val actions: Seq[Action]) {
 
-  // Populates children for all actions currently in the action list
-  def populateChildren() = {
-
-  }
-
+  // Sorts actions to run based on dependency and runs actions
   def run() = {
     topologicalSort()
+    actions.foreach(_.run)
   }
 
   private def topologicalSort() = {
-
+    // TODO: Implement plz
   }
 }
