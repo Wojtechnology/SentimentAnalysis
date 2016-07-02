@@ -11,6 +11,9 @@ class CSVParserSuite extends FunSuite {
   test("Testing if parse correctly parses CSV") {
     val source = Source.fromURL(getClass.getResource("/testcsv.csv"))
     val items = CSVParser.parse(source)
-    assert(items == List(List("this", "is", "a", "test"), List("csv", "for", "csv", "parser")))
+    assert(items == List(
+      List("this", "is", "a", "test"),
+      List("csv", "for", "csv", "parser")
+    ))
   }
 }
