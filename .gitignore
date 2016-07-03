@@ -30,3 +30,6 @@ tags
 
 # MacOSX specific
 .DS_Store
+
+# Large binaries
+data/
