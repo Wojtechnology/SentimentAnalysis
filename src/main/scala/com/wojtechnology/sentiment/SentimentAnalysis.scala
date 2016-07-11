@@ -12,13 +12,29 @@ object SentimentAnalysis {
       println("Did not provide a filename")
     } else {
       val fileName = args.head
-      val conf = new SparkConf().setAppName("SentimentAnalysis")
-      val sc = new SparkContext(conf)
+      val sc = initSpark("SentimentAnalysis")
+
       val parser = new CSVParser with ColumnsFilter
 
       val rawData = sc.textFile(fileName)
-      val filtered = parser.parse(rawData)
-      filtered.take(10).foreach(println)
+      val parsed = parser.parse(rawData)
+      val filtered = parser.filter(parsed, Seq(0,3,4,5))
+      val hasSmiley = filtered.filter(_(3).contains(":("))
+      val countSmiley = hasSmiley.count()
+
+      println(countSmiley)
+      hasSmiley.foreach(println)
+      // filtered.take(10).foreach(println)
     }
+  }
+
+  /**
+    * Init SparkContext with given app name
+    * @param appName
+    * @return SparkContext for use in program
+    */
+  def initSpark(appName: String): SparkContext = {
+    val conf = new SparkConf().setAppName(appName)
+    new SparkContext(conf)
   }
 }

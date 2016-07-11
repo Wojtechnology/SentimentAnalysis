@@ -16,7 +16,7 @@ As of now, this requires that you have Spark 1.6.2 installed and all paths set c
 // From root folder
 spark-submit \
     --class com.wojtechnology.sentiment.SentimentAnalysis \
-    --master local[4] \ // <- however many cores you got
+    --master local[4] \
     target/scala-2.11/sentimentanalysis_2.11-1.0.jar \
-    data/training.1600000.processed.noemoticon.csv // <- whatever file you got
+    data/training.1600000.processed.noemoticon.csv
 ```
