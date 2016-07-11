@@ -1,5 +1,6 @@
 package com.wojtechnology.sentiment
 
+import com.wojtechnology.sentiment.parse.{CSVParser, ColumnsFilter}
 import org.apache.spark.{SparkConf, SparkContext}
 
 /** Main object for SentimentAnalysis tool */
@@ -13,10 +14,11 @@ object SentimentAnalysis {
       val fileName = args.head
       val conf = new SparkConf().setAppName("SentimentAnalysis")
       val sc = new SparkContext(conf)
-      val logData = sc.textFile(fileName, 2).cache()
-      val numAs = logData.filter(line => line.contains("a")).count()
-      val numBs = logData.filter(line => line.contains("b")).count()
-      println(s"Lines with a: $numAs, Lines with b: $numBs")
+      val parser = new CSVParser with ColumnsFilter
+
+      val rawData = sc.textFile(fileName)
+      val filtered = parser.parse(rawData)
+      filtered.take(10).foreach(println)
     }
   }
 }
