@@ -5,7 +5,7 @@ import org.apache.spark.ml.classification.LogisticRegression
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.linalg.{Vector, Vectors}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SparkSession}
 
 /** Main object for SentimentAnalysis tool */
@@ -18,9 +18,11 @@ object SentimentAnalysis {
     } else {
       val spark = initSpark("SentimentAnalysis")
 
+      import spark.implicits._
+
       val schema = StructType(Seq(
         StructField("polarity", IntegerType, nullable = false),
-        StructField("id", IntegerType, nullable = false),
+        StructField("id", LongType, nullable = false),
         StructField("dateString", StringType, nullable = false),
         StructField("query", StringType, nullable = false),
         StructField("user", StringType, nullable = false),
@@ -33,6 +35,10 @@ object SentimentAnalysis {
         .load(args(0))
 
       df.show()
+      df.select("polarity").show()
+      df.select($"polarity", $"id" + 1).show()
+      df.filter($"polarity" === 4).show()
+      df.groupBy("polarity").count().show()
   }
 
   def mlLibExample() = {
