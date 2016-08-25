@@ -5,8 +5,17 @@ import org.apache.spark.ml.classification.LogisticRegression
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.linalg.{Vector, Vectors}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SparkSession}
+
+
+case class RankedTweet(polarity: Int,
+                       id: Long,
+                       dateString: String,
+                       query: String,
+                       user: String,
+                       text: String)
 
 /** Main object for SentimentAnalysis tool */
 object SentimentAnalysis {
@@ -29,16 +38,25 @@ object SentimentAnalysis {
         StructField("text", StringType, nullable = false)
       ))
 
-      val df = spark.sqlContext.read
+      val ds = spark.sqlContext.read
         .format("com.databricks.spark.csv")
         .schema(schema)
         .load(args(0))
+        .as[RankedTweet]
 
-      df.show()
-      df.select("polarity").show()
-      df.select($"polarity", $"id" + 1).show()
-      df.filter($"polarity" === 4).show()
-      df.groupBy("polarity").count().show()
+      /* ds.show()
+      ds.select("polarity").show()
+      ds.select($"polarity", $"id" + 1).show()
+      ds.filter($"polarity" === 4).show()
+      ds.groupBy("polarity").count().show() */
+
+      val allText = ds.select("text").flatMap[String]((attributes: Row) => attributes(0)
+        .toString()
+        .split(" ")
+        .toTraversable)
+
+      allText.groupBy("value").count().orderBy(desc("count")).show()
+
   }
 
   def mlLibExample() = {
