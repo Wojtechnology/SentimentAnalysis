@@ -1,7 +1,8 @@
 package com.wojtechnology.sentiment
 
-import com.wojtechnology.sentiment.parse.CSVParser
+import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.classification.LogisticRegression
+import org.apache.spark.ml.feature.{CountVectorizer, CountVectorizerModel, Tokenizer}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.linalg.{Vector, Vectors}
 import org.apache.spark.rdd.RDD
@@ -38,25 +39,28 @@ object SentimentAnalysis {
         StructField("text", StringType, nullable = false)
       ))
 
-      val ds = spark.sqlContext.read
+      val df = spark.sqlContext.read
         .format("com.databricks.spark.csv")
         .schema(schema)
         .load(args(0))
-        .as[RankedTweet]
 
-      /* ds.show()
-      ds.select("polarity").show()
-      ds.select($"polarity", $"id" + 1).show()
-      ds.filter($"polarity" === 4).show()
-      ds.groupBy("polarity").count().show() */
+      val tokenizer: Tokenizer = new Tokenizer()
+        .setInputCol("text")
+        .setOutputCol("tokens")
 
-      val allText = ds.select("text").flatMap[String]((attributes: Row) => attributes(0)
-        .toString()
-        .split(" ")
-        .toTraversable)
+      val countVectorizer: CountVectorizer = new CountVectorizer()
+        .setInputCol("tokens")
+        .setOutputCol("features")
 
-      allText.groupBy("value").count().orderBy(desc("count")).show()
+      val pipeline = new Pipeline()
+        .setStages(Array(tokenizer, countVectorizer))
 
+      val cvModel = pipeline.fit(df)
+
+      val featuredData = cvModel.transform(df)
+
+      featuredData.show()
+    }
   }
 
   def mlLibExample() = {
@@ -120,31 +124,14 @@ object SentimentAnalysis {
         println(s"($features, $label) -> prob=$prob, prediction=$prediction")
       }
   }
-  }
 
   /**
     * Init SparkContext with given app name
+    *
     * @param appName Name of Spark Application
     * @return SparkContext for use in program
     */
   def initSpark(appName: String): SparkSession = {
     SparkSession.builder().appName(appName).getOrCreate()
-  }
-
-  /**
-    * Counts number of rows in data containing token and print first 10
-    * @param rawData Raw file data
-    * @param token token to count
-    * @return Unit
-    */
-  def countTokens(rawData: RDD[String], token: String) = {
-    val parser = new CSVParser
-
-    val parsed = parser.parse(rawData)
-    val hasSmiley = parsed.filter(_(6).contains(token))
-    val countSmiley = hasSmiley.count()
-
-    println(s"Found $countSmiley '$token's")
-    hasSmiley.foreach(println)
   }
 }
