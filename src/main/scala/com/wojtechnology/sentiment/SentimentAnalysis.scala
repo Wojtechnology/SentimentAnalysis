@@ -9,16 +9,9 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 
 
-case class RankedTweet(polarity: Int,
-                       id: Long,
-                       dateString: String,
-                       query: String,
-                       user: String,
-                       text: String)
-
 /** Main object for SentimentAnalysis tool */
 object SentimentAnalysis {
-  val log = LogManager.getRootLogger
+  val log = LogManager.getLogger("com.wojtechnology.sentiment")
 
   /** Main function for program */
   def main(args: Array[String]) {
@@ -34,58 +27,48 @@ object SentimentAnalysis {
       val productLabels = (polarity: Double) => if (polarity == 4.0) 1.0 else 0.0
       val udfProductLabels = udf(productLabels).apply(col("polarity"))
 
+      log.info("Reading training data...")
       val trainDf = readCSV(spark, trainPath)
       val trainDfTokenized = tokenize(trainDf)
       val trainDfCleaned = clean(trainDfTokenized)
 
-      val tfidfPipeline = tfidfModel(trainDfCleaned)
-      val trainDfTransformed = tfidfPipeline
+      val tfidfVectorizer = new TfidfVectorizer()
+        .setInputCol("tokensClean")
+        .setOutputCol("features")
+        .fit(trainDfCleaned)
+      tfidfVectorizer.save("tfidf.dat")
+
+      val trainDfTransformed = tfidfVectorizer
         .transform(trainDfCleaned)
-        .withColumn("label", udfProductLabels)
+        .withColumn("labels", udfProductLabels)
 
       val clf = new NaiveBayes()
         .setFeaturesCol("features")
-        .setLabelCol("label")
-        .setPredictionCol("prediction")
+        .setLabelCol("labels")
         .fit(trainDfTransformed)
 
       val testDf = readCSV(spark, testPath).filter(row => row.getDouble(0) != 2.0)
 
       val testDfTokenized = tokenize(testDf)
       val testDfCleaned = clean(testDfTokenized)
-      val testDfTransformed = tfidfPipeline
+      val testDfTransformed = tfidfVectorizer
         .transform(testDfCleaned)
-        .withColumn("label", udfProductLabels)
+        .withColumn("labels", udfProductLabels)
 
       val predictions = clf.transform(testDfTransformed)
 
       val testCount = testDf.count
-      val correctCount = predictions.select("label", "prediction").filter(row => {
+      val correctCount = predictions.select("labels", "prediction").filter(row => {
         row.getDouble(0) == row.getDouble(1)
       }).count
       val correct = correctCount.toFloat / testCount.toFloat
-      println(s"Correct: $correct, $correctCount / $testCount")
+      log.info(s"Correct: $correct, $correctCount / $testCount")
     }
   }
 
   def tokenize(df: DataFrame): DataFrame = {
     val tokenizer = new Tokenizer().setInputCol("rawText").setOutputCol("tokens")
     tokenizer.transform(df)
-  }
-
-  /**
-    * Trains a tfidf vectorizer model and returns it
-    *
-    * @param df DataFrame containing column "cleanTokens"
-    * @return tfidf pipeline model
-    */
-  def tfidfModel(df: DataFrame): PipelineModel = {
-    val countVectorizer = new CountVectorizer()
-      .setInputCol("tokensClean")
-      .setOutputCol("featuresRaw")
-    val idf = new IDF().setInputCol("featuresRaw").setOutputCol("features")
-    val pipeline = new Pipeline().setStages(Array(countVectorizer, idf))
-    pipeline.fit(df)
   }
 
   /**
