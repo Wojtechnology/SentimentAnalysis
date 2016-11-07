@@ -1,7 +1,7 @@
 package com.wojtechnology.sentiment
 
 import org.apache.spark.ml.{Estimator, Pipeline, PipelineModel}
-import org.apache.spark.ml.feature.{CountVectorizer, HashingTF, IDF}
+import org.apache.spark.ml.feature.{CountVectorizer, IDF}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.util.Identifiable
 import org.apache.spark.sql.types._

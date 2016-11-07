@@ -2,7 +2,6 @@ package com.wojtechnology.sentiment
 
 import org.apache.log4j.LogManager
 import org.apache.spark.ml.classification.NaiveBayes
-import org.apache.spark.ml.{Pipeline, PipelineModel}
 import org.apache.spark.ml.feature._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, SparkSession}
@@ -15,55 +14,84 @@ object SentimentAnalysis {
 
   /** Main function for program */
   def main(args: Array[String]) {
-    if (args.length < 2) {
-      log.error("Did not provide a train and test data")
-    } else {
-      val spark = initSpark("SentimentAnalysis")
-      val trainPath = args(0)
-      val testPath = args(1)
+    CommandLineParser.parseAndValidate(args) match {
+      case Some(options) => {
+        val spark = initSpark("SentimentAnalysis")
 
-      import spark.implicits._
-
-      val productLabels = (polarity: Double) => if (polarity == 4.0) 1.0 else 0.0
-      val udfProductLabels = udf(productLabels).apply(col("polarity"))
-
-      log.info("Reading training data...")
-      val trainDf = readCSV(spark, trainPath)
-      val trainDfTokenized = tokenize(trainDf)
-      val trainDfCleaned = clean(trainDfTokenized)
-
-      val tfidfVectorizer = new TfidfVectorizer()
-        .setInputCol("tokensClean")
-        .setOutputCol("features")
-        .fit(trainDfCleaned)
-      tfidfVectorizer.save("tfidf.dat")
-
-      val trainDfTransformed = tfidfVectorizer
-        .transform(trainDfCleaned)
-        .withColumn("labels", udfProductLabels)
-
-      val clf = new NaiveBayes()
-        .setFeaturesCol("features")
-        .setLabelCol("labels")
-        .fit(trainDfTransformed)
-
-      val testDf = readCSV(spark, testPath).filter(row => row.getDouble(0) != 2.0)
-
-      val testDfTokenized = tokenize(testDf)
-      val testDfCleaned = clean(testDfTokenized)
-      val testDfTransformed = tfidfVectorizer
-        .transform(testDfCleaned)
-        .withColumn("labels", udfProductLabels)
-
-      val predictions = clf.transform(testDfTransformed)
-
-      val testCount = testDf.count
-      val correctCount = predictions.select("labels", "prediction").filter(row => {
-        row.getDouble(0) == row.getDouble(1)
-      }).count
-      val correct = correctCount.toFloat / testCount.toFloat
-      log.info(s"Correct: $correct, $correctCount / $testCount")
+        (options.getString(CommandLineParser.MODEL_OPTION),
+            options.getString(CommandLineParser.ACTION_OPTION)) match {
+          case (Some("tfidf"), Some("fit")) => tfidfFit(spark, options)
+          case _ =>
+            // NB(wojtek) if this happens, it means that parseAndValidate is inconsistent with this
+            // piece of code.
+        }
+      }
+      case None => {
+        CommandLineParser.printUsage
+        System.exit(1)
+      }
     }
+  }
+
+  def tfidfFit(spark: SparkSession, options: CommandLineOptions) = {
+    log.info("Reading training data...")
+    val trainPath = options.getString(CommandLineParser.TRAIN_FILE_OPTION).get
+    val outputPath = options.getString(CommandLineParser.OUTPUT_FILE_OPTION).get
+
+    val trainDf = readCSV(spark, trainPath)
+    val trainDfTokenized = tokenize(trainDf)
+    val trainDfCleaned = clean(trainDfTokenized)
+
+    val tfidfVectorizer = new TfidfVectorizer()
+      .setInputCol("tokensClean")
+      .setOutputCol("features")
+      .fit(trainDfCleaned)
+    tfidfVectorizer.save(outputPath)
+  }
+
+  def oldCode(spark: SparkSession, args: Array[String]) = {
+    val trainPath = args(0)
+    val testPath = args(1)
+
+    val productLabels = (polarity: Double) => if (polarity == 4.0) 1.0 else 0.0
+    val udfProductLabels = udf(productLabels).apply(col("polarity"))
+
+    log.info("Reading training data...")
+    val trainDf = readCSV(spark, trainPath)
+    val trainDfTokenized = tokenize(trainDf)
+    val trainDfCleaned = clean(trainDfTokenized)
+
+    val tfidfVectorizer = new TfidfVectorizer()
+      .setInputCol("tokensClean")
+      .setOutputCol("features")
+      .fit(trainDfCleaned)
+    tfidfVectorizer.save("tfidf.dat")
+
+    val trainDfTransformed = tfidfVectorizer
+      .transform(trainDfCleaned)
+      .withColumn("labels", udfProductLabels)
+
+    val clf = new NaiveBayes()
+      .setFeaturesCol("features")
+      .setLabelCol("labels")
+      .fit(trainDfTransformed)
+
+    val testDf = readCSV(spark, testPath).filter(row => row.getDouble(0) != 2.0)
+
+    val testDfTokenized = tokenize(testDf)
+    val testDfCleaned = clean(testDfTokenized)
+    val testDfTransformed = tfidfVectorizer
+      .transform(testDfCleaned)
+      .withColumn("labels", udfProductLabels)
+
+    val predictions = clf.transform(testDfTransformed)
+
+    val testCount = testDf.count
+    val correctCount = predictions.select("labels", "prediction").filter(row => {
+      row.getDouble(0) == row.getDouble(1)
+    }).count
+    val correct = correctCount.toFloat / testCount.toFloat
+    log.info(s"Correct: $correct, $correctCount / $testCount")
   }
 
   def tokenize(df: DataFrame): DataFrame = {
