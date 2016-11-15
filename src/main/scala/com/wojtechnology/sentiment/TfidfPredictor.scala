@@ -1,17 +1,17 @@
 package com.wojtechnology.sentiment
 
 import org.apache.spark.ml.{Estimator, Pipeline, PipelineModel}
-import org.apache.spark.ml.feature.{CountVectorizer, IDF}
+import org.apache.spark.ml.feature.{CountVectorizer, IDF, StopWordsRemover, Tokenizer}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.util.Identifiable
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.Dataset
+import org.apache.spark.sql.{Dataset, SparkSession}
 
 /**
   * Uses Tfidf model to generate vectors from most important words in the corpus.
   * TODO(wojtek): accept params for size of TokenVectorizer
   */
-class TfidfVectorizer(override val uid: String) extends Estimator[PipelineModel]
+class TfidfPredictor(override val uid: String) extends Estimator[PipelineModel]
   with HasInputCol with HasOutputCol {
 
   type TokenVectorizer = CountVectorizer
@@ -85,5 +85,39 @@ class TfidfVectorizer(override val uid: String) extends Estimator[PipelineModel]
     * @param extra
     * @return the copy
     */
-  override def copy(extra: ParamMap): TfidfVectorizer = defaultCopy(extra)
+  override def copy(extra: ParamMap): TfidfPredictor = defaultCopy(extra)
+}
+
+/**
+  * Contains code for training and predicting using the Tfidf Vectorizer
+  */
+object TfidfPredictor {
+
+  /**
+    * Trains a tfidf model
+    * @param options
+    * @param spark
+    * @return Pipeline model that performs tfidf
+    */
+  def train(options: CommandLineOptions, spark: SparkSession): PipelineModel = {
+    val trainPath = options.getString(CommandLineParser.TRAIN_FILE_OPTION).get
+    val outputPath = options.getString(CommandLineParser.OUTPUT_FILE_OPTION).get
+
+    val trainDf = TwitterCSVReader.read(spark, trainPath)
+
+    // Tokenize raw text
+    val tokenizer = new Tokenizer().setInputCol("rawText").setOutputCol("tokens")
+    val trainDfTokenized = tokenizer.transform(trainDf)
+
+    // Remove stop words
+    val remover = new StopWordsRemover().setInputCol("tokens").setOutputCol("tokensClean")
+    val trainDfCleaned = remover.transform(trainDfTokenized)
+
+    val tfidfVectorizer = new TfidfPredictor()
+      .setInputCol("tokensClean")
+      .setOutputCol("features")
+      .fit(trainDfCleaned)
+    tfidfVectorizer.save(outputPath)
+    tfidfVectorizer
+  }
 }

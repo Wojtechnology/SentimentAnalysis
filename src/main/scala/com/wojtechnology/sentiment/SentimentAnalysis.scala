@@ -20,7 +20,9 @@ object SentimentAnalysis {
 
         (options.getString(CommandLineParser.MODEL_OPTION),
             options.getString(CommandLineParser.ACTION_OPTION)) match {
-          case (Some("tfidf"), Some("fit")) => tfidfFit(spark, options)
+          case (Some("tfidf"), Some("fit")) => {
+            TfidfPredictor.train(options, spark)
+          }
           case _ =>
             // NB(wojtek) if this happens, it means that parseAndValidate is inconsistent with this
             // piece of code.
@@ -33,22 +35,6 @@ object SentimentAnalysis {
     }
   }
 
-  def tfidfFit(spark: SparkSession, options: CommandLineOptions) = {
-    log.info("Reading training data...")
-    val trainPath = options.getString(CommandLineParser.TRAIN_FILE_OPTION).get
-    val outputPath = options.getString(CommandLineParser.OUTPUT_FILE_OPTION).get
-
-    val trainDf = readCSV(spark, trainPath)
-    val trainDfTokenized = tokenize(trainDf)
-    val trainDfCleaned = clean(trainDfTokenized)
-
-    val tfidfVectorizer = new TfidfVectorizer()
-      .setInputCol("tokensClean")
-      .setOutputCol("features")
-      .fit(trainDfCleaned)
-    tfidfVectorizer.save(outputPath)
-  }
-
   def oldCode(spark: SparkSession, args: Array[String]) = {
     val trainPath = args(0)
     val testPath = args(1)
@@ -57,11 +43,11 @@ object SentimentAnalysis {
     val udfProductLabels = udf(productLabels).apply(col("polarity"))
 
     log.info("Reading training data...")
-    val trainDf = readCSV(spark, trainPath)
+    val trainDf = TwitterCSVReader.read(spark, trainPath)
     val trainDfTokenized = tokenize(trainDf)
     val trainDfCleaned = clean(trainDfTokenized)
 
-    val tfidfVectorizer = new TfidfVectorizer()
+    val tfidfVectorizer = new TfidfPredictor()
       .setInputCol("tokensClean")
       .setOutputCol("features")
       .fit(trainDfCleaned)
@@ -76,7 +62,7 @@ object SentimentAnalysis {
       .setLabelCol("labels")
       .fit(trainDfTransformed)
 
-    val testDf = readCSV(spark, testPath).filter(row => row.getDouble(0) != 2.0)
+    val testDf = TwitterCSVReader.read(spark, testPath).filter(row => row.getDouble(0) != 2.0)
 
     val testDfTokenized = tokenize(testDf)
     val testDfCleaned = clean(testDfTokenized)
@@ -108,29 +94,6 @@ object SentimentAnalysis {
   def clean(df: DataFrame): DataFrame = {
     val remover = new StopWordsRemover().setInputCol("tokens").setOutputCol("tokensClean")
     remover.transform(df)
-  }
-
-  /**
-    * Reads CSV into dataframe
-    *
-    * @param spark Spark Session
-    * @param path CSV path
-    * @return DataFrame containing data in CSV
-    */
-  def readCSV(spark: SparkSession, path: String): DataFrame = {
-    val schema = StructType(Seq(
-      StructField("polarity", DoubleType, nullable = false),
-      StructField("id", LongType, nullable = false),
-      StructField("dateString", StringType, nullable = false),
-      StructField("query", StringType, nullable = false),
-      StructField("user", StringType, nullable = false),
-      StructField("rawText", StringType, nullable = false)
-    ))
-
-    spark.sqlContext.read
-      .format("com.databricks.spark.csv")
-      .schema(schema)
-      .load(path)
   }
 
   /**
