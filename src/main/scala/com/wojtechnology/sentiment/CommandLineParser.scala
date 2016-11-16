@@ -63,9 +63,12 @@ object CommandLineParser {
 
   val ACTION_OPTION = 'action
   val MODEL_OPTION = 'model
-  val TRAIN_FILE_OPTION = 'test_file
+
+  val TRAIN_FILE_OPTION = 'train_file
   val EVAL_FILE_OPTION = 'eval_file
   val OUTPUT_FILE_OPTION = 'output_file
+  val TFIDF_FILE_OPTION = 'tfidf_file
+  val CLF_FILE_OPTION = 'clf_file
 
   private def parse(args: Array[String]): Option[CommandLineOptions] = {
     if (args.length >= 2) {
@@ -86,6 +89,12 @@ object CommandLineParser {
           ), tail)
           case "-o" :: outputFile :: tail => nextOption(map ++ Map(
             OUTPUT_FILE_OPTION -> new CommandLineOption[String](OUTPUT_FILE_OPTION, outputFile)
+          ), tail)
+          case "--tfidf" :: tfidfFile :: tail => nextOption(map ++ Map(
+            TFIDF_FILE_OPTION -> new CommandLineOption[String](TFIDF_FILE_OPTION, tfidfFile)
+          ), tail)
+          case "--clf" :: clfFile :: tail => nextOption(map ++ Map(
+            CLF_FILE_OPTION -> new CommandLineOption[String](CLF_FILE_OPTION, clfFile)
           ), tail)
           case option :: tail => {
             println(s"Unknown option '$option'")
@@ -125,6 +134,14 @@ object CommandLineParser {
       case (Some("tfidf"), Some("fit")) => {
         assertContains(options, Set(TRAIN_FILE_OPTION, OUTPUT_FILE_OPTION))
       }
+      case (Some("naive"), Some("fit")) => {
+        assertContains(options, Set(TRAIN_FILE_OPTION, OUTPUT_FILE_OPTION,
+          TFIDF_FILE_OPTION))
+      }
+      case (Some("naive"), Some("eval")) => {
+        assertContains(options, Set(EVAL_FILE_OPTION, CLF_FILE_OPTION,
+          TFIDF_FILE_OPTION))
+      }
       case (Some(model), Some(action)) => {
         // TODO(wojtek): Check if model and action are valid
         println(s"'$action' action is not defined for model '$model'")
@@ -137,6 +154,13 @@ object CommandLineParser {
     }
   }
 
+  val OPTION_MAP = Map(
+    TRAIN_FILE_OPTION -> "-t",
+    EVAL_FILE_OPTION -> "-e",
+    OUTPUT_FILE_OPTION -> "-o",
+    TFIDF_FILE_OPTION -> "--tfidf",
+    CLF_FILE_OPTION -> "--clf"
+  )
 
   /**
     * Asserts that `options` contain CommandOption with given symbols
@@ -146,7 +170,10 @@ object CommandLineParser {
     * @return Whether `options` contains the required symbols
     */
   private def assertContains(options: CommandLineOptions, symbols: Set[Symbol]): Boolean = {
-    symbols.foldLeft(true)((last: Boolean, symbol: Symbol) => options.contains(symbol) && last)
+    val missing = symbols.filter(symbol => !options.contains(symbol))
+    missing.foreach(symbol => println(s"Option '${symbol.name}' missing: " +
+      s"${OPTION_MAP(symbol)} <value>"))
+    missing.isEmpty
   }
 
   /**
@@ -155,6 +182,6 @@ object CommandLineParser {
   def printUsage = {
     println("Usage: sentimentanalysis.jar <action> <model> [args] [options]")
     println("Actions: 'fit', 'predict'")
-    println("Models: 'tfidf'")
+    println("Models: 'tfidf', 'naive'")
   }
 }

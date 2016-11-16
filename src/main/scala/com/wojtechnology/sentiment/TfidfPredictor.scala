@@ -120,4 +120,13 @@ object TfidfPredictor {
     tfidfVectorizer.save(outputPath)
     tfidfVectorizer
   }
+
+  /**
+    * Loads a tfidf model and returns it
+    * @param path
+    * @return
+    */
+  def load(path: String): PipelineModel = {
+    PipelineModel.load(path)
+  }
 }
